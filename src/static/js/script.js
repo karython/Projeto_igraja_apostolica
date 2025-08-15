@@ -33,13 +33,26 @@ const fmt = {
 
 // ======= Funções de integração com backend =======
 async function api(endpoint, method = 'GET', body = null) {
-  const headers = { 'Content-Type': 'application/json' };
-  if (state.token) headers['Authorization'] = 'Bearer ' + state.token;
-  const opts = { method, headers };
-  if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(endpoint, opts);
-  if (!res.ok) throw new Error(await res.text());
-  return await res.json();
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+
+  // Add the token to the Authorization header if available
+  if (state.token) {
+    headers['Authorization'] = `Bearer ${state.token}`;
+  }
+
+  const response = await fetch(endpoint, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : null,
+  });
+
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json();
 }
 
 // ======= Autenticação =======
@@ -52,17 +65,21 @@ $('#loginForm').addEventListener('submit', async (e) => {
     const resp = await api('/api/auth/login', 'POST', { email, password });
     state.token = resp.token;
     state.user = resp.user;
-  state.token = resp.token;
-  state.user = resp.user;
-  renderNav(); renderUserBox();
-  await loadMembers();
-  await loadRoles();
-  location.hash = '#/members';
+
+    // Atualiza navegação e redireciona para a página de membros
+    renderNav();
+    renderUserBox();
+    await loadMembers();
+    await loadRoles();
+    navigate(); // Garante que o roteador seja chamado
+    location.hash = '#/members'; // Redireciona para a página de membros
   } catch (err) {
     state.token = null;
     state.user = null;
-    renderNav(); renderUserBox();
-    location.hash = '#/login';
+    renderNav();
+    renderUserBox();
+    navigate(); // Garante que o roteador seja chamado
+    location.hash = '#/login'; // Redireciona para a página de login
     alert('Login inválido!');
   }
 });
@@ -139,11 +156,43 @@ window.addEventListener('hashchange', navigate);
 // ======= Autenticação (mock) =======
 function renderUserBox(){
   const box = $('#userBox');
-  if(state.token){
-    box.innerHTML = `<span class="muted">${state.user?.email||'usuário'}</span> <button class="btn" id="btnLogout">Sair</button>`;
-    $('#btnLogout')?.addEventListener('click', ()=>{ state.token=null; state.user=null; renderNav(); navigate(); renderUserBox(); });
-  } else {
-    box.innerHTML = '';
+  box.innerHTML = `
+    <button class="btn" id="btnOpenUserModal">Cadastrar Usuário</button>
+    ${state.token ? `<span class="muted">${state.user?.email||'usuário'}</span> <button class="btn" id="btnLogout">Sair</button>` : ''}
+  `;
+  $('#btnOpenUserModal')?.addEventListener('click', () => {
+    const dlg = $('#userDialog');
+    dlg.showModal();
+
+    dlg.addEventListener('close', async () => {
+      if (dlg.returnValue === 'default') {
+        const name = $('#userName').value.trim();
+        const email = $('#userEmail').value.trim();
+        const password = $('#userPassword').value.trim();
+
+        if (!name || !email || !password) {
+          alert('Todos os campos são obrigatórios!');
+          return;
+        }
+
+        try {
+          await api('/api/users', 'POST', { name, email, password });
+          alert('Usuário cadastrado com sucesso!');
+        } catch (err) {
+          alert('Erro ao cadastrar usuário: ' + err.message);
+        }
+      }
+    }, { once: true });
+  });
+
+  if (state.token) {
+    $('#btnLogout')?.addEventListener('click', () => {
+      state.token = null;
+      state.user = null;
+      renderNav();
+      navigate();
+      renderUserBox();
+    });
   }
 }
 $('#loginForm').addEventListener('submit', (e)=>{
@@ -207,6 +256,17 @@ $('#filterMemberRole')?.addEventListener('change', renderMembers);
 $('#btnNewMember').addEventListener('click', ()=>openMemberDialog());
 
 // Função de diálogo de cadastro/edição de membro
+$('#btnCancelMember').addEventListener('click', () => {
+  const dlg = $('#memberDialog');
+  if (dlg) {
+    dlg.close(); // fecha o modal
+    $('#memberName').value = '';
+    $('#memberStatus').value = 'frequente';
+    $$('#rolesArea input[type=checkbox]').forEach(cb => cb.checked = false);
+    $('#memberId').value = '';
+    $('#memberDialogTitle').textContent = 'Cadastrar membro';
+  }
+});
 function openMemberDialog(id) {
   const dlg = $('#memberDialog');
   const editing = !!id;
@@ -418,3 +478,64 @@ $('#btnRunFilters').addEventListener('click', () => {
 (async function init() {
   renderNav(); renderUserBox(); navigate();
 })();
+
+// Abrir modal de cadastro de usuário
+document.querySelector('#btnOpenUserModal').addEventListener('click', () => {
+  const dlg = document.querySelector('#userDialog');
+  if (dlg) {
+    dlg.showModal();
+  } else {
+    console.error('Modal de cadastro de usuário não encontrada!');
+  }
+});
+
+// Evento para validar o formulário de cadastro
+document.getElementById('formCadastro').addEventListener('submit', async function(event) {
+  const nome = document.getElementById('nome').value.trim();
+  const email = document.getElementById('userEmail').value.trim();
+  const password = document.getElementById('userPassword').value.trim();
+
+  if (nome === '' || email === '' || password === '') {
+    alert('Todos os campos são obrigatórios!');
+    event.preventDefault(); // Impede o envio do formulário
+    return;
+  }
+
+  try {
+    await api('/api/users', 'POST', { name: nome, email, password });
+    alert('Usuário cadastrado com sucesso!');
+    document.getElementById('formCadastro').reset(); // Limpa o formulário
+    document.querySelector('#userDialog').close(); // Fecha a modal
+  } catch (err) {
+    alert('Erro ao cadastrar usuário: ' + err.message);
+    event.preventDefault(); // Impede o envio do formulário
+  }
+});
+
+// Evento para cancelar o cadastro
+document.getElementById('btnCancelar').addEventListener('click', function() {
+  document.getElementById('formCadastro').reset(); // Limpa os campos do formulário
+  alert('Cadastro cancelado!');
+  document.querySelector('#userDialog').close(); // Fecha a modal
+});
+async function loadRoles() {
+  try {
+    const roles = await api('/api/roles', 'GET'); // Supondo que a rota /api/roles retorna a lista de cargos
+    const filterRole = document.getElementById('filterRole');
+    filterRole.innerHTML = '<option value="">Todos os cargos</option>'; // Reseta as opções
+
+    roles.forEach(role => {
+      const option = document.createElement('option');
+      option.value = role;
+      option.textContent = role;
+      filterRole.appendChild(option);
+    });
+  } catch (err) {
+    console.error('Erro ao carregar cargos:', err);
+  }
+}
+
+// Chama a função ao carregar a página
+document.addEventListener('DOMContentLoaded', () => {
+  loadRoles();
+});

@@ -14,9 +14,19 @@ db = SQLAlchemy()
 # Inicializa Flask
 app = Flask(__name__)
 
+
+HOST = "srv1061.hstgr.io"
+USER = "u275872813_admin_diario"
+PASSWORD = "diarioIA25"
+PORT = "3306"
+DB = "u275872813_diario_ia"
+
 # Configurações
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'supersecretkey')
-app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+pymysql://{os.getenv('USER')}:{os.getenv('PASSWORD')}@{os.getenv('HOST')}:{os.getenv('PORT')}/{os.getenv('DB')}"
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+#app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+pymysql://{os.getenv('USER')}:{os.getenv('PASSWORD')}@{os.getenv('HOST')}:{os.getenv('PORT')}/{os.getenv('DB')}"
+
+app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+pymysql://{USER}:{PASSWORD}@{HOST}:{PORT}/{DB}"
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Inicializa DB com o app

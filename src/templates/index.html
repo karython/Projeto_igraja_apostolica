@@ -12,23 +12,34 @@
     <div class="topbar">
       <div class="brand"><span class="dot"></span> Diário Digital</div>
       <nav class="nav" id="nav"></nav>
-      <div class="user" id="userBox"></div>
+      <div id="userBox" class="user"></div> <!-- Adicionado -->
+      
     </div>
   </header>
 
   <main>
     <!-- LOGIN -->
-    <section id="view-login" class="card fade-in" hidden>
-      <div class="head"><strong>Entrar</strong><span class="muted">Acesse com seu e-mail</span></div>
+    <section id="view-login" class="card fade-in">
+      <div class="head">
+        <strong>Entrar</strong>
+        <span class="muted">Acesse com seu e-mail</span>
+      </div>
       <div class="body">
         <form id="loginForm" class="grid cols-2" autocomplete="on">
-          <div class="grid"><label>E-mail</label><input class="input" type="email" name="email" required placeholder="voce@exemplo.com"></div>
-          <div class="grid"><label>Senha</label><input class="input" type="password" name="password" required placeholder="••••••••"></div>
+          <div class="grid">
+            <label>E-mail</label>
+            <input class="input" type="email" name="email" required placeholder="email@exemplo.com">
+          </div>
+          <div class="grid">
+            <label>Senha</label>
+            <input class="input" type="password" name="password" required placeholder="••••••••">
+          </div>
           <div class="row" style="grid-column:1/-1;justify-content:space-between">
-            <div class="muted">Dica: use <span class="kbd">demo@demo.com</span> / <span class="kbd">demo123</span></div>
+            <!--<div class="muted">Dica: use <span class="kbd">demo@demo.com</span> / <span class="kbd">demo123</span></div>-->
             <button class="btn primary" type="submit">Entrar</button>
           </div>
         </form>
+        
       </div>
     </section>
 
@@ -125,7 +136,9 @@
         </div>
         <div>
           <label>Cargo</label>
-          <input id="filterRole" class="input" placeholder="Ex.: Professor" />
+          <select id="filterRole" class="input">
+            <option value="">Todos os cargos</option>
+          </select>
         </div>
         <div>
           <label>Situação</label>
@@ -211,12 +224,34 @@
       </select>
     </div>
     <div class="row" style="justify-content:flex-end;margin-top:8px">
-      <button class="btn ghost" value="cancel">Cancelar</button>
+      <button type="button" id="btnCancelMember" class="btn ghost" value="cancel">Cancelar</button>
       <button class="btn primary" value="default">Salvar</button>
     </div>
   </form>
 </dialog>
 
+<!-- MODAL: Cadastro de Usuário -->
+<dialog id="userDialog">
+  <form id="formCadastro" method="dialog" class="grid" style="padding:18px">
+    <h3 id="userDialogTitle" style="margin:0">Cadastrar Usuário</h3>
+    <div class="grid">
+      <label>Nome</label>
+      <input id="nome" class="input" required placeholder="Digite o nome" />
+    </div>
+    <div class="grid">
+      <label>E-mail</label>
+      <input id="userEmail" class="input" type="email" required placeholder="voce@exemplo.com" />
+    </div>
+    <div class="grid">
+      <label>Senha</label>
+      <input id="userPassword" class="input" type="password" required placeholder="••••••••" />
+    </div>
+    <div class="row" style="justify-content:flex-end;margin-top:8px">
+      <button class="btn primary" type="submit">Salvar</button>
+      <button class="btn ghost" type="button" id="btnCancelar">Cancelar</button>
+    </div>
+  </form>
+</dialog>
 <script src="/static/js/script.js"></script>
 </body>
 </html>

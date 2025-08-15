@@ -2,7 +2,7 @@ from flask import request, jsonify, render_template
 from functools import wraps
 import jwt, datetime
 from src import app
-from src.services.servisos import authenticate_user, get_user_by_id, list_members, create_member, update_member, list_attendance, update_attendance, list_roles
+from src.services.servisos import authenticate_user, create_user, get_user_by_id, list_members, create_member, update_member, list_attendance, update_attendance, list_roles
 
 # ===== Rota principal para SPA =====
 @app.route('/')
@@ -81,3 +81,17 @@ def put_attendance_route(current_user, date):
 @token_required
 def get_roles_route(current_user):
     return jsonify(list_roles())
+
+@app.route('/api/users', methods=['POST'])
+def create_user_route():
+    data = request.json
+
+    if not data.get('name') or not data.get('email') or not data.get('password'):
+        return jsonify({'message': 'Os campos name, email e password são obrigatórios!'}), 400
+
+    try:
+        user_id = create_user(data)
+        return jsonify({'id': user_id, 'message': 'Usuário criado com sucesso!'}), 201
+    except Exception as e:
+        print(f"Erro ao criar usuário: {e}")  # Log do erro no console
+        return jsonify({'message': 'Erro ao criar usuário', 'error': str(e)}), 500
