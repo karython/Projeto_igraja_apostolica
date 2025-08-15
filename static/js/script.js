@@ -114,8 +114,23 @@ $('#loginForm').addEventListener('submit', (e)=>{
 function renderMembers(){
   const tbody = $('#membersTable tbody');
   const query = $('#memberSearch').value.toLowerCase();
-  const filtered = state.members.filter(m=>m.name.toLowerCase().includes(query));
+  const selectedRole = $('#filterMemberRole') ? $('#filterMemberRole').value : '';
+
+  // Filtra membros por nome e cargo
+  const filtered = state.members.filter(m => 
+    m.name.toLowerCase().includes(query) &&
+    (!selectedRole || m.roles.includes(selectedRole))
+  );
+
+  // Atualiza contador total e contador por cargo
   $('#membersCount').textContent = `${filtered.length} membro(s)`;
+  if(selectedRole){
+    const countRole = filtered.length;
+    $('#membersByRoleCount').textContent = `${countRole} membro(s) nesse cargo`;
+  } else {
+    $('#membersByRoleCount').textContent = '';
+  }
+
   tbody.innerHTML = '';
   filtered.forEach(m=>{
     const tr = document.createElement('tr');
@@ -133,49 +148,84 @@ function renderMembers(){
     `;
     tbody.appendChild(tr);
   });
-  $$('button[data-edit]').forEach(b=>b.addEventListener('click',()=>openMemberDialog(b.dataset.edit)));
+
+  // Adiciona evento para abrir diálogo de edição
+  $$('button[data-edit]').forEach(b => b.addEventListener('click', ()=>openMemberDialog(b.dataset.edit)));
 }
+
+// Atualiza a lista ao digitar
 $('#memberSearch').addEventListener('input', renderMembers);
+$('#filterMemberRole')?.addEventListener('change', renderMembers);
 $('#btnNewMember').addEventListener('click', ()=>openMemberDialog());
 
+// Função de diálogo de cadastro/edição de membro
 function openMemberDialog(id){
   const dlg = $('#memberDialog');
   const editing = !!id;
-  $('#memberDialogTitle').textContent = editing? 'Editar membro' : 'Cadastrar membro';
+  $('#memberDialogTitle').textContent = editing ? 'Editar membro' : 'Cadastrar membro';
   $('#memberId').value = id||'';
+
   // Roles checkboxes
-  const rolesArea = $('#rolesArea'); rolesArea.innerHTML = '';
+  const rolesArea = $('#rolesArea'); 
+  rolesArea.innerHTML = '';
   state.roles.forEach(role=>{
-    const label = document.createElement('label'); label.style.display='inline-flex'; label.style.alignItems='center'; label.style.gap='6px';
-    label.innerHTML = `<input type="checkbox" value="${role}"> ${role}`; rolesArea.appendChild(label);
+    const label = document.createElement('label');
+    label.style.display='inline-flex';
+    label.style.alignItems='center';
+    label.style.gap='6px';
+    label.innerHTML = `<input type="checkbox" value="${role}"> ${role}`;
+    rolesArea.appendChild(label);
   });
+
+  // Reset campos
   $('#memberName').value = '';
   $('#memberStatus').value = 'frequente';
+
   if(editing){
     const m = state.members.find(x=>x.id===id);
     if(m){
-      $('#memberName').value = m.name; $('#memberStatus').value = m.status;
-      $$('#rolesArea input[type=checkbox]').forEach(cb=>cb.checked = m.roles.includes(cb.value));
+      $('#memberName').value = m.name; 
+      $('#memberStatus').value = m.status;
+      $$('#rolesArea input[type=checkbox]').forEach(cb => cb.checked = m.roles.includes(cb.value));
     }
   }
+
   dlg.showModal();
+
   dlg.addEventListener('close', ()=>{
     if(dlg.returnValue==='default'){
       const name = $('#memberName').value.trim();
       const status = $('#memberStatus').value;
       const roles = $$('#rolesArea input:checked').map(cb=>cb.value);
       if(!name) return;
+
       if(editing){
-        const i = state.members.findIndex(x=>x.id===id); if(i>-1){ state.members[i] = {...state.members[i], name, status, roles}; }
-        // \u27a4 Backend real: PUT /api/members/:id
+        const i = state.members.findIndex(x=>x.id===id);
+        if(i>-1) state.members[i] = {...state.members[i], name, status, roles};
+        // ➤ Backend real: PUT /api/members/:id
       } else {
         state.members.push({ id: crypto.randomUUID(), name, status, roles, createdAt: fmt.date(new Date()) });
-        // \u27a4 Backend real: POST /api/members
+        // ➤ Backend real: POST /api/members
       }
-      storage.save(); renderMembers();
+      storage.save(); 
+      renderMembers();
     }
   }, {once:true});
 }
+
+// Inicializa o select de cargos do filtro
+function renderMemberRoleFilter(){
+  const sel = $('#filterMemberRole');
+  sel.innerHTML = '<option value="">Todos os cargos</option>';
+  state.roles.forEach(role => {
+    const opt = document.createElement('option');
+    opt.value = role; opt.textContent = role;
+    sel.appendChild(opt);
+  });
+}
+renderMemberRoleFilter();
+renderMembers();
+
 
 // ======= Lista de Presença =======
 function sundaysAround(startDate=new Date(), weeks=52){
@@ -255,30 +305,70 @@ function setPresence(date, memberId, value){
 }
 
 // ======= Filtros =======
-function renderFilterDates(){
-  const sel = $('#filterDate'); sel.innerHTML='';
-  sundaysAround(new Date(), 60).forEach(iso=>{
-    const o = document.createElement('option'); o.value = iso; o.textContent = new Date(iso).toLocaleDateString(); sel.appendChild(o);
+
+// Preenche o select com datas de domingos
+function renderFilterDates() {
+  const sel = $('#filterDate');
+  sel.innerHTML = '';
+  sundaysAround(new Date(), 60).forEach(iso => {
+    const o = document.createElement('option');
+    o.value = iso;
+    o.textContent = new Date(iso).toLocaleDateString();
+    sel.appendChild(o);
   });
 }
-$('#btnRunFilters').addEventListener('click', ()=>{
-  const date = $('#filterDate').value; const pres = $('#filterPresence').value; const name = $('#filterName').value.toLowerCase(); const role = $('#filterRole').value.toLowerCase();
-  const tbody = $('#filtersResult tbody'); tbody.innerHTML='';
-  const map = state.attendanceByDate[date]||{};
+
+$('#btnRunFilters').addEventListener('click', () => {
+  const date = $('#filterDate').value;
+  const pres = $('#filterPresence').value;
+  const name = $('#filterName').value.toLowerCase();
+  const role = $('#filterRole').value.toLowerCase();
+  const status = $('#filterStatus').value; // Novo filtro por situação
+
+  const tbody = $('#filtersResult tbody');
+  tbody.innerHTML = '';
+
+  const map = state.attendanceByDate[date] || {};
   const data = state.members
-    .filter(m=> m.name.toLowerCase().includes(name))
-    .filter(m=> !role || m.roles.some(r=>r.toLowerCase().includes(role)))
-    .map(m=> ({ m, presence: map[m.id]||'P' }))
-    .filter(row=> !pres || row.presence===pres);
-  data.forEach(({m,presence})=>{
+    .filter(m => m.name.toLowerCase().includes(name))
+    .filter(m => !role || m.roles.some(r => r.toLowerCase().includes(role)))
+    .filter(m => !status || m.status === status)
+    .map(m => ({ m, presence: map[m.id] || 'P' }))
+    .filter(row => !pres || row.presence === pres);
+
+  // Contadores
+  let countFaltas = 0;
+  let countFaltasJustificadas = 0;
+  let totalMembros = data.length;
+  let cargosMap = {};
+
+  data.forEach(({ m, presence }) => {
+    if (presence === 'F') countFaltas++;
+    if (presence === 'FJ') countFaltasJustificadas++;
+
+    m.roles.forEach(cargo => {
+      cargosMap[cargo] = (cargosMap[cargo] || 0) + 1;
+    });
+
+    // Renderiza a linha
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td data-label="Data">${new Date(date).toLocaleDateString()}</td>
       <td data-label="Nome">${m.name}</td>
-      <td data-label="Cargos">${m.roles.join(', ')||'—'}</td>
+      <td data-label="Cargos">${m.roles.join(', ') || '—'}</td>
+      <td data-label="Situação">${m.status}</td>
       <td data-label="Presença">${renderPresenceLabel(presence)}</td>`;
     tbody.appendChild(tr);
   });
+
+  // Atualiza contadores
+  $('#countTotalMembers').textContent = totalMembros;
+  $('#countFaltas').textContent = countFaltas;
+  $('#countFaltasJustificadas').textContent = countFaltasJustificadas;
+  $('#countTotalFaltas').textContent = countFaltas + countFaltasJustificadas;
+  $('#countMembersByRole').textContent = Object.entries(cargosMap)
+    .map(([cargo, qtd]) => `${cargo}: ${qtd}`)
+    .join(' | ') || '—';
 });
 
 // ======= Inicialização =======

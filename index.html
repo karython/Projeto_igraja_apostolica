@@ -32,29 +32,41 @@
       </div>
     </section>
 
-    <!-- PRINCIPAL: MEMBROS -->
-    <section id="view-members" class="fade-in" hidden>
-      <div class="card">
-        <div class="head">
-          <div class="row"><strong>Lista de Membros</strong><span class="badge muted" id="membersCount">0 membros</span></div>
-          <div class="toolbar">
-            <input class="input" id="memberSearch" placeholder="Pesquisar por nome..." />
-            <button class="btn" id="btnNewMember">+ Cadastrar membro</button>
-          </div>
-        </div>
-        <div class="body">
-          <div class="muted" style="margin-bottom:10px">Colunas: <strong>Nome</strong>, <strong>Cargos</strong>, <strong>Editar situação</strong></div>
-          <div style="overflow:auto">
-            <table id="membersTable">
-              <thead>
-                <tr><th>Nome do Membro</th><th>Cargos</th><th>Situação</th><th>Ações</th></tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-        </div>
+<!-- PRINCIPAL: MEMBROS -->
+<section id="view-members" class="fade-in" hidden>
+  <div class="card">
+    <div class="head">
+      <div class="row">
+        <strong>Lista de Membros</strong>
+        <span class="badge muted" id="membersCount">0 membros</span>
       </div>
-    </section>
+
+      <div class="toolbar">
+        <input class="input" id="memberSearch" placeholder="Pesquisar por nome..." />
+        <select id="filterMemberRole">
+          <option value="">Todos os cargos</option>
+        </select>
+        <span id="membersByRoleCount" class="muted">0 membros nesse cargo</span>
+        <button class="btn" id="btnNewMember">+ Cadastrar membro</button>
+      </div>
+    </div>
+
+    <div class="body">
+      <div class="muted" style="margin-bottom:10px">
+        Colunas: <strong>Nome</strong>, <strong>Cargos</strong>, <strong>Editar situação</strong>
+      </div>
+      <div style="overflow:auto">
+        <table id="membersTable">
+          <thead>
+            <tr><th>Nome do Membro</th><th>Cargos</th><th>Situação</th><th>Ações</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
 
     <!-- LISTA DE PRESENÇA -->
     <section id="view-attendance" class="fade-in" hidden>
@@ -82,50 +94,98 @@
     </section>
 
     <!-- FILTROS DE PRESENÇA -->
-    <section id="view-filters" class="fade-in" hidden>
-      <div class="card">
-        <div class="head">
-          <strong>Filtros de Presença</strong>
-          <div class="toolbar"><button id="btnRunFilters" class="btn">Aplicar filtros</button></div>
+<section id="view-filters" class="fade-in" hidden>
+  <div class="card">
+    <div class="head">
+      <strong>Filtros de Presença</strong>
+      <div class="toolbar">
+        <button id="btnRunFilters" class="btn">Aplicar filtros</button>
+      </div>
+    </div>
+
+    <div class="body">
+      <!-- Área de filtros -->
+      <div class="grid cols-2">
+        <div>
+          <label>Data (Domingos)</label>
+          <select id="filterDate"></select>
         </div>
-        <div class="body">
-          <div class="grid cols-2">
-            <div>
-              <label>Data (Domingos)</label>
-              <select id="filterDate"></select>
-            </div>
-            <div>
-              <label>Status de presença</label>
-              <select id="filterPresence">
-                <option value="">Todos</option>
-                <option value="P">Presente</option>
-                <option value="F">Falta</option>
-                <option value="FJ">Falta Justificada</option>
-              </select>
-            </div>
-            <div>
-              <label>Cargo</label>
-              <input id="filterRole" class="input" placeholder="Ex.: Professor" />
-            </div>
-            <div>
-              <label>Nome contém</label>
-              <input id="filterName" class="input" placeholder="Buscar por nome" />
-            </div>
-          </div>
-          <div style="margin-top:14px;overflow:auto">
-            <table id="filtersResult">
-              <thead><tr><th>Data</th><th>Nome</th><th>Cargos</th><th>Presença</th></tr></thead>
-              <tbody></tbody>
-            </table>
-          </div>
+        <div>
+          <label>Status de presença</label>
+          <select id="filterPresence">
+            <option value="">Todos</option>
+            <option value="P">Presente</option>
+            <option value="F">Falta</option>
+            <option value="FJ">Falta Justificada</option>
+          </select>
+        </div>
+        <div>
+          <label>Nome contém</label>
+          <input id="filterName" class="input" placeholder="Buscar por nome" />
+        </div>
+        <div>
+          <label>Cargo</label>
+          <input id="filterRole" class="input" placeholder="Ex.: Professor" />
+        </div>
+        <div>
+          <label>Situação</label>
+          <select id="filterStatus">
+            <option value="">Todas</option>
+            <option value="frequente">Frequente</option>
+            <option value="afastado">Afastado</option>
+            <option value="licenca">Licença</option>
+          </select>
         </div>
       </div>
-    </section>
+
+      <!-- Área de contadores -->
+      <div class="stats-container">
+        <div class="stat-box">
+          <strong id="countTotalMembers">0</strong>
+          <span>Total de Membros</span>
+        </div>
+        <div class="stat-box">
+          <strong id="countFaltas">0</strong>
+          <span>Faltas</span>
+        </div>
+        <div class="stat-box">
+          <strong id="countFaltasJustificadas">0</strong>
+          <span>Faltas Justificadas</span>
+        </div>
+        <div class="stat-box">
+          <strong id="countTotalFaltas">0</strong>
+          <span>Total de Faltas</span>
+        </div>
+        <div class="stat-box">
+          <strong id="countMembersByRole">-</strong>
+          <span>Membros por Cargo</span>
+        </div>
+      </div>
+
+      <!-- Lista filtrada -->
+      <div style="margin-top:14px;overflow:auto">
+        <table id="filtersResult">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Nome</th>
+              <th>Cargos</th>
+              <th>Situação</th>
+              <th>Presença</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
 
   </main>
 
   <footer>
-    <small>© 2025 Diário Digital. Interface responsiva com HTML, CSS e JS puro.</small>
+    <small>© 2025 Diário Digital. Desenvolvido por <a href="https://karythongomes.com.br">GomesTechnology</a>.</small>
   </footer>
 </div>
 
