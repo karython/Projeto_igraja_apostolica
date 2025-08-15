@@ -30,25 +30,73 @@ const fmt = {
   date(d){return new Date(d).toISOString().slice(0,10)}
 }
 
-// Persistência local (simula DB)
-const storage = {
-  save(){ localStorage.setItem('diario.state', JSON.stringify({members: state.members, attendanceByDate: state.attendanceByDate})) },
-  load(){ const raw = localStorage.getItem('diario.state'); if(raw){ try{ const {members, attendanceByDate} = JSON.parse(raw); state.members = members||[]; state.attendanceByDate = attendanceByDate||{}; }catch(e){} } }
+
+// ======= Funções de integração com backend =======
+async function api(endpoint, method = 'GET', body = null) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (state.token) headers['Authorization'] = 'Bearer ' + state.token;
+  const opts = { method, headers };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(endpoint, opts);
+  if (!res.ok) throw new Error(await res.text());
+  return await res.json();
 }
 
-// Mock inicial (apenas na primeira vez)
-function ensureSeed(){
-  if(!localStorage.getItem('diario.seeded')){
-    state.members = [
-      {id: crypto.randomUUID(), name:'Ana Clara', roles:['Aluno'], status:'frequente', createdAt: fmt.date(new Date())},
-      {id: crypto.randomUUID(), name:'Bruno Lima', roles:['Professor','Líder'], status:'frequente', createdAt: fmt.date(new Date())},
-      {id: crypto.randomUUID(), name:'Carla Souza', roles:['Auxiliar'], status:'licenca', createdAt: fmt.date(new Date())},
-      {id: crypto.randomUUID(), name:'Diego Alves', roles:['Aluno'], status:'afastado', createdAt: fmt.date(new Date())},
-    ];
-    state.attendanceByDate = {};
-    storage.save();
-    localStorage.setItem('diario.seeded','1');
+// ======= Autenticação =======
+$('#loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const email = fd.get('email');
+  const password = fd.get('password');
+  try {
+    const resp = await api('/api/auth/login', 'POST', { email, password });
+    state.token = resp.token;
+    state.user = resp.user;
+  state.token = resp.token;
+  state.user = resp.user;
+  renderNav(); renderUserBox();
+  await loadMembers();
+  await loadRoles();
+  location.hash = '#/members';
+  } catch (err) {
+    state.token = null;
+    state.user = null;
+    renderNav(); renderUserBox();
+    location.hash = '#/login';
+    alert('Login inválido!');
   }
+});
+
+// ======= Carregar membros do backend =======
+async function loadMembers() {
+  try {
+    state.members = await api('/api/members');
+    renderMembers();
+  } catch (err) {
+    state.members = [];
+    renderMembers();
+  }
+}
+
+// ======= Carregar cargos do backend =======
+async function loadRoles() {
+  try {
+    state.roles = await api('/api/roles');
+    renderMemberRoleFilter();
+  } catch (err) {
+    state.roles = ["Professor","Líder","Aluno","Auxiliar","Visitante"];
+    renderMemberRoleFilter();
+  }
+}
+
+// ======= Criar/Editar membro via backend =======
+async function saveMember(data, editing, id) {
+  if (editing) {
+    await api(`/api/members/${id}`, 'PUT', data);
+  } else {
+    await api('/api/members', 'POST', data);
+  }
+  await loadMembers();
 }
 
 // ======= Router =======
@@ -159,20 +207,20 @@ $('#filterMemberRole')?.addEventListener('change', renderMembers);
 $('#btnNewMember').addEventListener('click', ()=>openMemberDialog());
 
 // Função de diálogo de cadastro/edição de membro
-function openMemberDialog(id){
+function openMemberDialog(id) {
   const dlg = $('#memberDialog');
   const editing = !!id;
   $('#memberDialogTitle').textContent = editing ? 'Editar membro' : 'Cadastrar membro';
-  $('#memberId').value = id||'';
+  $('#memberId').value = id || '';
 
   // Roles checkboxes
-  const rolesArea = $('#rolesArea'); 
+  const rolesArea = $('#rolesArea');
   rolesArea.innerHTML = '';
-  state.roles.forEach(role=>{
+  state.roles.forEach(role => {
     const label = document.createElement('label');
-    label.style.display='inline-flex';
-    label.style.alignItems='center';
-    label.style.gap='6px';
+    label.style.display = 'inline-flex';
+    label.style.alignItems = 'center';
+    label.style.gap = '6px';
     label.innerHTML = `<input type="checkbox" value="${role}"> ${role}`;
     rolesArea.appendChild(label);
   });
@@ -181,10 +229,10 @@ function openMemberDialog(id){
   $('#memberName').value = '';
   $('#memberStatus').value = 'frequente';
 
-  if(editing){
-    const m = state.members.find(x=>x.id===id);
-    if(m){
-      $('#memberName').value = m.name; 
+  if (editing) {
+    const m = state.members.find(x => x.id === id);
+    if (m) {
+      $('#memberName').value = m.name;
       $('#memberStatus').value = m.status;
       $$('#rolesArea input[type=checkbox]').forEach(cb => cb.checked = m.roles.includes(cb.value));
     }
@@ -192,25 +240,15 @@ function openMemberDialog(id){
 
   dlg.showModal();
 
-  dlg.addEventListener('close', ()=>{
-    if(dlg.returnValue==='default'){
+  dlg.addEventListener('close', async () => {
+    if (dlg.returnValue === 'default') {
       const name = $('#memberName').value.trim();
       const status = $('#memberStatus').value;
-      const roles = $$('#rolesArea input:checked').map(cb=>cb.value);
-      if(!name) return;
-
-      if(editing){
-        const i = state.members.findIndex(x=>x.id===id);
-        if(i>-1) state.members[i] = {...state.members[i], name, status, roles};
-        // ➤ Backend real: PUT /api/members/:id
-      } else {
-        state.members.push({ id: crypto.randomUUID(), name, status, roles, createdAt: fmt.date(new Date()) });
-        // ➤ Backend real: POST /api/members
-      }
-      storage.save(); 
-      renderMembers();
+      const roles = $$('#rolesArea input:checked').map(cb => cb.value);
+      if (!name) return;
+      await saveMember({ name, status, roles }, editing, id);
     }
-  }, {once:true});
+  }, { once: true });
 }
 
 // Inicializa o select de cargos do filtro
@@ -228,80 +266,85 @@ renderMembers();
 
 
 // ======= Lista de Presença =======
-function sundaysAround(startDate=new Date(), weeks=52){
+function sundaysAround(startDate = new Date(), weeks = 52) {
   // gera últimos e próximos domingos
   const dates = new Set();
   const start = new Date(startDate);
-  for(let i=-weeks;i<=weeks;i++){
-    const d = new Date(start); d.setDate(d.getDate()+i*7);
+  for (let i = -weeks; i <= weeks; i++) {
+    const d = new Date(start); d.setDate(d.getDate() + i * 7);
     // Ajusta para domingo (0)
     const delta = d.getDay(); // 0..6
-    d.setDate(d.getDate()-delta); // volta até domingo
+    d.setDate(d.getDate() - delta); // volta até domingo
     dates.add(fmt.date(d));
   }
   return Array.from(dates).sort();
 }
-function renderAttendanceDates(){
-  const sel = $('#attendanceDate'); sel.innerHTML='';
-  sundaysAround(new Date(), 60).forEach(iso=>{
+function renderAttendanceDates() {
+  const sel = $('#attendanceDate'); sel.innerHTML = '';
+  sundaysAround(new Date(), 60).forEach(iso => {
     const o = document.createElement('option'); o.value = iso; o.textContent = new Date(iso).toLocaleDateString(); sel.appendChild(o);
   });
 }
-$('#btnLoadAttendance').addEventListener('click', ()=>{
-  const date = $('#attendanceDate').value; loadAttendance(date); renderAttendanceTable(date);
+$('#btnLoadAttendance').addEventListener('click', async () => {
+  const date = $('#attendanceDate').value; await loadAttendance(date); renderAttendanceTable(date);
 });
-$('#btnSaveAttendance').addEventListener('click', ()=>{
-  const date = $('#attendanceDate').value; if(!date) return;
-  // \u27a4 Backend real: PUT /api/attendance/:date { entries }
-  storage.save();
-  alert('Presenças salvas para '+ new Date(date).toLocaleDateString());
+$('#btnSaveAttendance').addEventListener('click', async () => {
+  const date = $('#attendanceDate').value; if (!date) return;
+  // Salva presença no backend
+  const entries = Object.entries(state.attendanceByDate[date] || {}).map(([memberId, presence]) => ({ memberId, presence }));
+  await api(`/api/attendance/${date}`, 'PUT', { entries });
+  alert('Presenças salvas para ' + new Date(date).toLocaleDateString());
 });
 
-function loadAttendance(date){
-  // \u27a4 Backend real: GET /api/attendance?date=YYYY-MM-DD
-  if(!state.attendanceByDate[date]) state.attendanceByDate[date] = {};
+async function loadAttendance(date) {
+  // Carrega presença do backend
+  try {
+    const records = await api(`/api/attendance?date=${date}`);
+    state.attendanceByDate[date] = {};
+    records.forEach(r => { state.attendanceByDate[date][r.memberId] = r.presence; });
+  } catch (err) {
+    state.attendanceByDate[date] = {};
+  }
 }
-function renderAttendanceTable(date){
+function renderAttendanceTable(date) {
   const tbody = $('#attendanceTable tbody');
-  tbody.innerHTML='';
-  const map = state.attendanceByDate[date]||{};
+  tbody.innerHTML = '';
+  const map = state.attendanceByDate[date] || {};
   // Apenas membros não-afastados aparecem; licença aparece como inativo
-  const list = state.members.filter(m=>m.status!== 'afastado');
-  list.sort((a,b)=>a.name.localeCompare(b.name));
-  list.forEach(m=>{
+  const list = state.members.filter(m => m.status !== 'afastado');
+  list.sort((a, b) => a.name.localeCompare(b.name));
+  list.forEach(m => {
     const current = map[m.id] || 'P'; // default Presente
     const tr = document.createElement('tr');
-    const disabled = m.status==='licenca';
+    const disabled = m.status === 'licenca';
     tr.innerHTML = `
       <td data-label="Nome">${m.name}</td>
       <td data-label="Situação">${{
-        'frequente':'Frequente', 'afastado':'Afastado', 'licenca':'Licença'
+        'frequente': 'Frequente', 'afastado': 'Afastado', 'licenca': 'Licença'
       }[m.status]}</td>
       <td data-label="Presença">
         <div class="row" style="gap:8px;align-items:center">
-          <button class="btn" data-cycle="${m.id}" ${disabled?'disabled':''}>${renderPresenceLabel(current)}</button>
+          <button class="btn" data-cycle="${m.id}" ${disabled ? 'disabled' : ''}>${renderPresenceLabel(current)}</button>
           <span class="muted">(clique para alternar)</span>
         </div>
       </td>`;
     tbody.appendChild(tr);
   });
-  $$('button[data-cycle]').forEach(btn=>btn.addEventListener('click',()=>{
-    const id = btn.dataset.cycle; const next = cyclePresence(getPresence(date,id)); setPresence(date,id,next); btn.textContent = renderPresenceLabel(next);
+  $$('button[data-cycle]').forEach(btn => btn.addEventListener('click', () => {
+    const id = btn.dataset.cycle; const next = cyclePresence(getPresence(date, id)); setPresence(date, id, next); btn.textContent = renderPresenceLabel(next);
   }));
 }
-function renderPresenceLabel(code){
-  // Regras do enunciado: checkbox triestado (vazio=Presente, preenchido=Falta, FJ=Falta Justificada)
-  // Aqui usamos um botão que alterna os estados mantendo o conceito visual (P/F/FJ)
-  return ({'P':'Presente','F':'Falta','FJ':'Falta Justificada'})[code] || 'Presente';
+function renderPresenceLabel(code) {
+  return ({ 'P': 'Presente', 'F': 'Falta', 'FJ': 'Falta Justificada' })[code] || 'Presente';
 }
-function cyclePresence(code){
-  return code==='P' ? 'F' : code==='F' ? 'FJ' : 'P';
+function cyclePresence(code) {
+  return code === 'P' ? 'F' : code === 'F' ? 'FJ' : 'P';
 }
-function getPresence(date, memberId){
-  const map = state.attendanceByDate[date]||{}; return map[memberId]||'P';
+function getPresence(date, memberId) {
+  const map = state.attendanceByDate[date] || {}; return map[memberId] || 'P';
 }
-function setPresence(date, memberId, value){
-  if(!state.attendanceByDate[date]) state.attendanceByDate[date] = {}; state.attendanceByDate[date][memberId]=value;
+function setPresence(date, memberId, value) {
+  if (!state.attendanceByDate[date]) state.attendanceByDate[date] = {}; state.attendanceByDate[date][memberId] = value;
 }
 
 // ======= Filtros =======
@@ -372,6 +415,6 @@ $('#btnRunFilters').addEventListener('click', () => {
 });
 
 // ======= Inicialização =======
-(function init(){
-  ensureSeed(); storage.load(); renderNav(); renderUserBox(); navigate();
+(async function init() {
+  renderNav(); renderUserBox(); navigate();
 })();

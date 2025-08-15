@@ -1,16 +1,16 @@
 from src import db
-from src.models import member, attendance, role, user
+from src.models import member, attendance, role, user as user_model
 import datetime
 
 # ===== Usuários =====
 def authenticate_user(email, password):
-    user = user.User.query.filter_by(email=email).first()
-    if user and user.check_password(password):
-        return user
+    usuario = user_model.User.query.filter_by(email=email).first()
+    if usuario and usuario.check_password(password):
+        return usuario
     return None
 
 def get_user_by_id(user_id):
-    return user.User.query.get(user_id)
+    return user_model.User.query.get(user_id)
 
 # ===== Membros =====
 def list_members():
