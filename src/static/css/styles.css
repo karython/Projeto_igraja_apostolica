@@ -213,6 +213,11 @@ footer { padding: 24px 16px; color: var(--muted); text-align: center; }
   border-radius: 8px;
 }
 
+.logo {
+  width: 200px;
+  height: auto;
+  margin-right: 10px;
+}
 .stat-box {
   text-align: center;
   padding: 12px;
