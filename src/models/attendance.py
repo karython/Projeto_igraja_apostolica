@@ -10,3 +10,4 @@ class Attendance(db.Model):
     date = db.Column(db.Date)
     presence = db.Column(db.String(2))  # 'P', 'F', 'FJ'
     member = db.relationship('Member', backref='attendances')
+    observation = db.Column(db.String(255), nullable=True)

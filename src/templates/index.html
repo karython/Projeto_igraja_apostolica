@@ -5,15 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Diário Digital — Controle de Presença</title>
   <link rel="stylesheet" href="/static/css/styles.css">
+  <link rel="icon" type="image/png" href="/src/static/img/LOGO A - NOVO.png">
+
+
 </head>
 <body>
 <div class="app" id="app">
   <header>
     <div class="topbar">
+
       <div class="brand"><span class="dot"></span> Diário Digital</div>
       <nav class="nav" id="nav"></nav>
-      <div id="userBox" class="user"></div> <!-- Adicionado -->
-      
+      <div id="userBox" class="user"></div>
     </div>
   </header>
 
@@ -35,67 +38,40 @@
             <input class="input" type="password" name="password" required placeholder="••••••••">
           </div>
           <div class="row" style="grid-column:1/-1;justify-content:space-between">
-            <!--<div class="muted">Dica: use <span class="kbd">demo@demo.com</span> / <span class="kbd">demo123</span></div>-->
             <button class="btn primary" type="submit">Entrar</button>
           </div>
         </form>
-        
       </div>
     </section>
 
-<!-- PRINCIPAL: MEMBROS -->
-<section id="view-members" class="fade-in" hidden>
-  <div class="card">
-    <div class="head">
-      <div class="row">
-        <strong>Lista de Membros</strong>
-        <span class="badge muted" id="membersCount">0 membros</span>
-      </div>
-
-      <div class="toolbar">
-        <input class="input" id="memberSearch" placeholder="Pesquisar por nome..." />
-        <select id="filterMemberRole">
-          <option value="">Todos os cargos</option>
-        </select>
-        <span id="membersByRoleCount" class="muted">0 membros nesse cargo</span>
-        <button class="btn" id="btnNewMember">+ Cadastrar membro</button>
-      </div>
-    </div>
-
-    <div class="body">
-      <div class="muted" style="margin-bottom:10px">
-        Colunas: <strong>Nome</strong>, <strong>Cargos</strong>, <strong>Editar situação</strong>
-      </div>
-      <div style="overflow:auto">
-        <table id="membersTable">
-          <thead>
-            <tr><th>Nome do Membro</th><th>Cargos</th><th>Situação</th><th>Ações</th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-</section>
-
-
-    <!-- LISTA DE PRESENÇA -->
-    <section id="view-attendance" class="fade-in" hidden>
+    <!-- PRINCIPAL: MEMBROS -->
+    <section id="view-members" class="fade-in" hidden>
       <div class="card">
         <div class="head">
-          <strong>Lista de Presença</strong>
+          <div class="row">
+            <strong>Lista de Membros</strong>
+            <span class="badge muted" id="membersCount">0 membros</span>
+          </div>
+
           <div class="toolbar">
-            <select id="attendanceDate" title="Datas (apenas domingos)"></select>
-            <button class="btn" id="btnLoadAttendance">Carregar</button>
-            <button class="btn primary" id="btnSaveAttendance">Salvar presenças</button>
+            <input class="input" id="memberSearch" placeholder="Pesquisar por nome..." />
+            <select id="filterMemberRole">
+              <option value="">Todos os cargos</option>
+            </select>
+            <span id="membersByRoleCount" class="muted">0 membros nesse cargo</span>
+            <button class="btn" id="btnNewMember">+ Cadastrar membro</button>
           </div>
         </div>
+
         <div class="body">
-          <p class="muted">Regra: <em>Licença</em> aparece aqui como inativo. <em>Afastado</em> não aparece na chamada.</p>
+          <div class="muted" style="margin-bottom:10px">
+            Colunas: <strong>Nome</strong>, <strong>Cargos</strong>, <strong>Editar situação</strong>
+            <br><small>⚠️ Membros em vermelho possuem 3 ou mais faltas não justificadas</small>
+          </div>
           <div style="overflow:auto">
-            <table id="attendanceTable">
+            <table id="membersTable">
               <thead>
-                <tr><th>Nome</th><th>Situação</th><th>Presença</th></tr>
+                <tr><th>Nome do Membro</th><th>Cargos</th><th>Situação</th><th>Ações</th></tr>
               </thead>
               <tbody></tbody>
             </table>
@@ -104,87 +80,36 @@
       </div>
     </section>
 
-    <!-- FILTROS DE PRESENÇA -->
-<section id="view-filters" class="fade-in" hidden>
+   <!-- LISTA DE PRESENÇA -->
+<section id="view-attendance" class="fade-in" hidden>
   <div class="card">
     <div class="head">
-      <strong>Filtros de Presença</strong>
+      <strong>Lista de Presença</strong>
       <div class="toolbar">
-        <button id="btnRunFilters" class="btn">Aplicar filtros</button>
+        <!-- ✅ Campo de calendário no lugar do select -->
+        <input 
+          type="date" 
+          id="attendanceDate" 
+          title="Escolha a data da chamada" 
+          style="padding:4px"
+        />
+        <button class="btn" id="btnLoadAttendance">Carregar</button>
+        <button class="btn primary" id="btnSaveAttendance">Salvar presenças</button>
       </div>
     </div>
-
     <div class="body">
-      <!-- Área de filtros -->
-      <div class="grid cols-2">
-        <div>
-          <label>Data (Domingos)</label>
-          <select id="filterDate"></select>
-        </div>
-        <div>
-          <label>Status de presença</label>
-          <select id="filterPresence">
-            <option value="">Todos</option>
-            <option value="P">Presente</option>
-            <option value="F">Falta</option>
-            <option value="FJ">Falta Justificada</option>
-          </select>
-        </div>
-        <div>
-          <label>Nome contém</label>
-          <input id="filterName" class="input" placeholder="Buscar por nome" />
-        </div>
-        <div>
-          <label>Cargo</label>
-          <select id="filterRole" class="input">
-            <option value="">Todos os cargos</option>
-          </select>
-        </div>
-        <div>
-          <label>Situação</label>
-          <select id="filterStatus">
-            <option value="">Todas</option>
-            <option value="frequente">Frequente</option>
-            <option value="afastado">Afastado</option>
-            <option value="licenca">Licença</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Área de contadores -->
-      <div class="stats-container">
-        <div class="stat-box">
-          <strong id="countTotalMembers">0</strong>
-          <span>Total de Membros</span>
-        </div>
-        <div class="stat-box">
-          <strong id="countFaltas">0</strong>
-          <span>Faltas</span>
-        </div>
-        <div class="stat-box">
-          <strong id="countFaltasJustificadas">0</strong>
-          <span>Faltas Justificadas</span>
-        </div>
-        <div class="stat-box">
-          <strong id="countTotalFaltas">0</strong>
-          <span>Total de Faltas</span>
-        </div>
-        <div class="stat-box">
-          <strong id="countMembersByRole">-</strong>
-          <span>Membros por Cargo</span>
-        </div>
-      </div>
-
-      <!-- Lista filtrada -->
-      <div style="margin-top:14px;overflow:auto">
-        <table id="filtersResult">
+      <p class="muted">
+        Regra: <em>Licença</em> aparece aqui como inativo. <em>Afastado</em> não aparece na chamada.
+        <br><small>⚠️ Membros em vermelho possuem 3 ou mais faltas não justificadas</small>
+      </p>
+      <div style="overflow:auto">
+        <table id="attendanceTable">
           <thead>
             <tr>
-              <th>Data</th>
               <th>Nome</th>
-              <th>Cargos</th>
               <th>Situação</th>
               <th>Presença</th>
+              <th>Observação</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -195,10 +120,159 @@
 </section>
 
 
+    <!-- FILTROS DE PRESENÇA -->
+    <section id="view-filters" class="fade-in" hidden>
+      <div class="card">
+        <div class="head">
+          <strong>Filtros de Presença e Análise de Faltas</strong>
+          <div class="toolbar">
+            <button id="btnRunFilters" class="btn">Aplicar filtros</button>
+          </div>
+        </div>
+
+        <div class="body">
+          <!-- Área de filtros -->
+          <div class="grid cols-2">
+            <input 
+              type="date" 
+              id="filterDate" 
+              title="Filtrar por data específica"
+              style="padding:4px"
+            />
+            <div>
+              <label>Status de presença</label>
+              <select id="filterPresence">
+                <option value="">Todos</option>
+                <option value="P">Presente</option>
+                <option value="F">Falta</option>
+                <option value="FJ">Falta Justificada</option>
+              </select>
+            </div>
+            <div>
+              <label>Nome contém</label>
+              <input id="filterName" class="input" placeholder="Buscar por nome" />
+            </div>
+            <div>
+              <label>Cargo</label>
+              <select id="filterRole" class="input">
+                <option value="">Todos os cargos</option>
+              </select>
+            </div>
+            <div>
+              <label>Situação</label>
+              <select id="filterStatus">
+                <option value="">Todas</option>
+                <option value="frequente">Frequente</option>
+                <option value="afastado">Afastado</option>
+                <option value="licenca">Licença</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Área de contadores -->
+          <div class="stats-container">
+            <div class="stat-box">
+              <strong id="countTotalMembers">0</strong>
+              <span>Total de Membros</span>
+            </div>
+            <div class="stat-box">
+              <strong id="countFaltas">0</strong>
+              <span>Faltas</span>
+            </div>
+            <div class="stat-box">
+              <strong id="countFaltasJustificadas">0</strong>
+              <span>Faltas Justificadas</span>
+            </div>
+            <div class="stat-box">
+              <strong id="countTotalFaltas">0</strong>
+              <span>Total de Faltas</span>
+            </div>
+            <div class="stat-box">
+              <strong id="countExcessiveAbsences">0</strong>
+              <span>Membros com +3 Faltas</span>
+            </div>
+            <div class="stat-box">
+              <strong id="countMembersByRole">-</strong>
+              <span>Membros por Cargo</span>
+            </div>
+          </div>
+
+          <!-- Lista filtrada -->
+          <div style="margin-top:14px;overflow:auto">
+            <table id="filtersResult">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Nome</th>
+                  <th>Cargos</th>
+                  <th>Situação</th>
+                  <th>Presença</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+          <!-- Seção de Análise de Faltas por Membro -->
+          <div class="analysis-section">
+            <h3 style="margin-top: 0; color: #1e40af;">📊 Análise Detalhada de Faltas por Membro</h3>
+                        
+            <div class="analysis-controls">
+              <div>
+                <label>Selecionar Membro</label>
+                <select id="absenceAnalysisMember" class="input">
+                  <option value="">Selecione um membro</option>
+                </select>
+              </div>
+              <div>
+                <label>Tipo de Análise</label>
+                <select id="absenceAnalysisType" class="input">
+                  <option value="all-absences">Todas as faltas (por data)</option>
+                  <option value="monthly-summary">Resumo mensal</option>
+                </select>
+              </div>
+              <div>
+                <button id="btnAnalyzeMemberAbsences" class="btn primary">Analisar</button>
+              </div>
+            </div>
+
+            <div id="absenceAnalysisSection" class="analysis-results" style="display: none;">
+              <h4 id="absenceAnalysisTitle">Resultado da Análise</h4>
+              <div class="muted" id="absenceAnalysisCount">-</div>
+              
+              <table id="absenceAnalysisResult" style="margin-top: 12px;">
+                <thead>
+                  <tr>
+                    <th>Data/Período</th>
+                    <th>Tipo/Total</th>
+                    <th>Detalhes</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+
+              
+              <table id="absenceAnalysisResult" style="margin-top: 12px;">
+                <thead>
+                  <tr>
+                    <th>Data/Período</th>
+                    <th>Tipo/Total</th>
+                    <th>Detalhes</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <footer>
-    <small>© 2025 Diário Digital. Desenvolvido por <a href="https://karythongomes.com.br">GomesTechnology</a>.</small>
+    <small>© 2025 Diário Digital. Desenvolvido por <a href="https://karythongomes.com.br"><strong>GomesTechnology</strong></a>.</small>
   </footer>
 </div>
 
@@ -253,5 +327,7 @@
   </form>
 </dialog>
 <script src="/static/js/script.js"></script>
+
+
 </body>
 </html>
