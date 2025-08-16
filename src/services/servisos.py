@@ -257,3 +257,17 @@ def member_exists(member_id):
     member = get_member_by_id(member_id)
     return member is not None
 
+
+def list_attendance_dates():
+    """
+    Retorna todas as datas únicas de presença registradas no banco,
+    ordenadas do mais antigo para o mais recente.
+    """
+    try:
+        # Se estiver usando SQLAlchemy
+        dates = db.session.query(attendance.Attendance.date).distinct().order_by(attendance.Attendance.date).all()
+        # Retorna só a lista de strings YYYY-MM-DD
+        return [d[0].strftime('%Y-%m-%d') for d in dates]
+    except Exception as e:
+        print(f"Erro em list_attendance_dates: {e}")
+        return []

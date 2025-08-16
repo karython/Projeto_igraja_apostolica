@@ -43,7 +43,7 @@ async function api(endpoint, method = 'GET', body = null) {
 }
 
 // ======= Autenticação =======
-$('#loginForm').addEventListener('submit', async (e) => {
+$('#loginForm')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
   const email = fd.get('email');
@@ -78,8 +78,6 @@ $('#loginForm').addEventListener('submit', async (e) => {
 async function loadMembers() {
   try {
     state.members = await api('/api/members');
-    // Carrega dados de presença após carregar membros
-    await loadAllAttendanceData();
     renderMembers();
   } catch (err) {
     console.error('Erro ao carregar membros:', err);
@@ -87,7 +85,6 @@ async function loadMembers() {
     renderMembers();
   }
 }
-
 
 // ======= Carregar cargos do backend =======
 async function loadRoles() {
@@ -121,6 +118,47 @@ async function saveMember(data, editing, id) {
     console.error('Erro ao salvar membro:', err);
     alert('Erro ao salvar membro: ' + err.message);
   }
+}
+
+// ======= Carregar TODOS os dados de presença =======
+async function loadAllAttendanceData() {
+    try {
+        console.log('Carregando todos os dados de presença...');
+        
+        // Carrega todas as datas disponíveis
+        const dates = await api('/api/attendance/dates');
+        
+        // Para cada data, carrega os dados de presença
+        for (const date of dates) {
+            if (!state.attendanceByDate[date]) {
+                console.log(`Carregando dados para: ${date}`);
+                const attendanceData = await api(`/api/attendance?date=${date}`);
+                
+                // Processa e armazena os dados no formato esperado
+                const attendanceMap = {};
+                
+                // Inicializa todos os membros como presentes
+                state.members.forEach(member => {
+                    attendanceMap[member.id] = 'P';
+                });
+                
+                // Sobrescreve com dados reais do banco
+                attendanceData.forEach(record => {
+                    attendanceMap[record.memberId] = record.presence || record.status;
+                });
+                
+                state.attendanceByDate[date] = attendanceMap;
+            }
+        }
+        
+        console.log('Todos os dados de presença carregados:', Object.keys(state.attendanceByDate).length, 'datas');
+        
+        // Atualiza os selects após carregar todos os dados
+        renderMemberSelect();
+        
+    } catch (err) {
+        console.error('Erro ao carregar dados completos de presença:', err);
+    }
 }
 
 // ======= Funções para análise de faltas =======
@@ -181,7 +219,7 @@ function renderNav(){
   const links = [
     ['#/members','Membros'],
     ['#/attendance','Lista de Presença'],
-    ['#/filters','Filtros']
+    ['#/filters','Filtros'],
   ];
   
   links.forEach(([href,label])=>{
@@ -221,7 +259,7 @@ function navigate(){
       show('members'); 
       break;
     case 'attendance': 
-     
+      renderAttendanceDates();
       show('attendance'); 
       break;
     case 'filters': 
@@ -273,9 +311,11 @@ function renderUserBox(){
     $('#btnLogout')?.addEventListener('click', () => {
       state.token = null;
       state.user = null;
+      state.attendanceByDate = {}; // Limpa dados ao fazer logout
       renderNav();
       navigate();
       renderUserBox();
+      location.hash = '#/login';
     });
   }
 }
@@ -283,8 +323,10 @@ function renderUserBox(){
 // ======= Membros =======
 function renderMembers(){
   const tbody = $('#membersTable tbody');
-  const query = $('#memberSearch').value.toLowerCase();
-  const selectedRole = $('#filterMemberRole').value;
+  if (!tbody) return;
+  
+  const query = $('#memberSearch')?.value.toLowerCase() || '';
+  const selectedRole = $('#filterMemberRole')?.value || '';
 
   // Filtra membros por nome e cargo
   const filtered = state.members.filter(m => {
@@ -294,11 +336,11 @@ function renderMembers(){
   });
 
   // Atualiza contadores
-  $('#membersCount').textContent = `${filtered.length} membro(s)`;
-  if(selectedRole){
-    $('#membersByRoleCount').textContent = `${filtered.length} membro(s) nesse cargo`;
-  } else {
-    $('#membersByRoleCount').textContent = '';
+  const countEl = $('#membersCount');
+  const roleCountEl = $('#membersByRoleCount');
+  if (countEl) countEl.textContent = `${filtered.length} membro(s)`;
+  if (roleCountEl) {
+    roleCountEl.textContent = selectedRole ? `${filtered.length} membro(s) nesse cargo` : '';
   }
 
   tbody.innerHTML = '';
@@ -313,10 +355,9 @@ function renderMembers(){
     
     // Verifica se o membro tem muitas faltas não justificadas
     const hasExcessive = hasExcessiveAbsences(m.id);
-    const rowClass = hasExcessive ? 'class="excessive-absences"' : '';
     
     tr.innerHTML = `
-      <td data-label="Nome" ${rowClass}>${m.name}${hasExcessive ? ' ⚠️' : ''}</td>
+      <td data-label="Nome">${m.name}${hasExcessive ? ' ⚠️' : ''}</td>
       <td data-label="Cargos">${rolesBadges||'<span class=muted>—</span>'}</td>
       <td data-label="Situação">${statusBadge}</td>
       <td data-label="Ações"><button class="btn" data-edit="${m.id}">Editar</button></td>
@@ -365,7 +406,7 @@ function renderFilterRoleSelect(){
   });
 }
 
-// Event listeners para filtros
+// Event listeners para filtros de membros
 $('#memberSearch')?.addEventListener('input', renderMembers);
 $('#filterMemberRole')?.addEventListener('change', renderMembers);
 $('#btnNewMember')?.addEventListener('click', ()=>openMemberDialog());
@@ -380,15 +421,23 @@ $('#btnCancelMember')?.addEventListener('click', () => {
 });
 
 function resetMemberDialog() {
-  $('#memberName').value = '';
-  $('#memberStatus').value = 'frequente';
+  const nameEl = $('#memberName');
+  const statusEl = $('#memberStatus');
+  const idEl = $('#memberId');
+  const titleEl = $('#memberDialogTitle');
+  
+  if (nameEl) nameEl.value = '';
+  if (statusEl) statusEl.value = 'frequente';
+  if (idEl) idEl.value = '';
+  if (titleEl) titleEl.textContent = 'Cadastrar membro';
+  
   $$('#rolesArea input[type=checkbox]').forEach(cb => cb.checked = false);
-  $('#memberId').value = '';
-  $('#memberDialogTitle').textContent = 'Cadastrar membro';
 }
 
 function openMemberDialog(id) {
   const dlg = $('#memberDialog');
+  if (!dlg) return;
+  
   const editing = !!id;
   
   $('#memberDialogTitle').textContent = editing ? 'Editar membro' : 'Cadastrar membro';
@@ -396,15 +445,17 @@ function openMemberDialog(id) {
 
   // Cria checkboxes para roles
   const rolesArea = $('#rolesArea');
-  rolesArea.innerHTML = '';
-  state.roles.forEach(role => {
-    const label = document.createElement('label');
-    label.style.display = 'inline-flex';
-    label.style.alignItems = 'center';
-    label.style.gap = '6px';
-    label.innerHTML = `<input type="checkbox" value="${role}"> ${role}`;
-    rolesArea.appendChild(label);
-  });
+  if (rolesArea) {
+    rolesArea.innerHTML = '';
+    state.roles.forEach(role => {
+      const label = document.createElement('label');
+      label.style.display = 'inline-flex';
+      label.style.alignItems = 'center';
+      label.style.gap = '6px';
+      label.innerHTML = `<input type="checkbox" value="${role}"> ${role}`;
+      rolesArea.appendChild(label);
+    });
+  }
 
   // Reset campos
   resetMemberDialog();
@@ -412,8 +463,10 @@ function openMemberDialog(id) {
   if (editing) {
     const m = state.members.find(x => x.id === id);
     if (m) {
-      $('#memberName').value = m.name;
-      $('#memberStatus').value = m.status;
+      const nameEl = $('#memberName');
+      const statusEl = $('#memberStatus');
+      if (nameEl) nameEl.value = m.name;
+      if (statusEl) statusEl.value = m.status;
       $$('#rolesArea input[type=checkbox]').forEach(cb => {
         cb.checked = (m.roles || []).includes(cb.value);
       });
@@ -424,8 +477,11 @@ function openMemberDialog(id) {
 
   dlg.addEventListener('close', async () => {
     if (dlg.returnValue === 'default') {
-      const name = $('#memberName').value.trim();
-      const status = $('#memberStatus').value;
+      const nameEl = $('#memberName');
+      const statusEl = $('#memberStatus');
+      
+      const name = nameEl ? nameEl.value.trim() : '';
+      const status = statusEl ? statusEl.value : 'frequente';
       const roles = $$('#rolesArea input:checked').map(cb => cb.value);
       
       if (!name) {
@@ -438,57 +494,6 @@ function openMemberDialog(id) {
   }, { once: true });
 }
 
-// ====================== Carregar e enviar presença da data selecionada ======================
-async function loadAllAttendanceData() {
-    const date = $('#attendanceDate').value;
-    if (!date) return alert('Selecione uma data');
-
-    try {
-        console.log(`Carregando dados de presença para ${date}...`);
-
-        // Carrega os dados atuais do backend
-        await loadAttendance(date);
-
-        // Garante que seja um array
-        const attendanceData = Array.isArray(state.attendanceByDate[date])
-            ? state.attendanceByDate[date]
-            : [];
-
-        // Prepara entries para enviar via PUT
-        const membersList = state.members.filter(m => m.status !== 'afastado');
-        const entries = membersList.map(member => {
-            const att = attendanceData.find(a => a.memberId === member.id) || {};
-            return {
-                memberId: member.id,
-                presence: att.status === 'falta' ? 'F' :
-                          att.status === 'fj' ? 'FJ' :
-                          'P', // padrão presente
-                observation: att.observation || ''
-            };
-        });
-
-        // Envia PUT para atualizar o banco
-        const res = await fetch(`/api/attendance/${date}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${state.token}`
-            },
-            body: JSON.stringify({ entries })
-        });
-
-        if (!res.ok) throw new Error('Falha ao atualizar presença');
-        console.log(`Presença atualizada para ${date}`);
-        alert('Presença carregada e enviada com sucesso!');
-
-        // Atualiza a tabela
-        renderAttendanceTable(date);
-
-    } catch (err) {
-        console.error(`Erro ao processar presença para ${date}:`, err);
-        alert('Erro ao processar presença. Veja console para detalhes.');
-    }
-}
 // ======= Lista de Presença =======
 function sundaysAround(startDate = new Date(), weeks = 52) {
   const dates = new Set();
@@ -505,6 +510,8 @@ function sundaysAround(startDate = new Date(), weeks = 52) {
 
 function renderAttendanceDates() {
   const sel = $('#attendanceDate'); 
+  if (!sel) return;
+  
   sel.innerHTML = '';
   sundaysAround(new Date(), 60).forEach(iso => {
     const o = document.createElement('option'); 
@@ -515,21 +522,23 @@ function renderAttendanceDates() {
 }
 
 $('#btnLoadAttendance')?.addEventListener('click', async () => {
-  const date = $('#attendanceDate').value; 
+  const date = $('#attendanceDate')?.value; 
+  if (!date) return;
+  
   await loadAttendance(date); 
   renderAttendanceTable(date);
 });
 
 $('#btnSaveAttendance')?.addEventListener('click', async () => {
-  const date = $('#attendanceDate').value; 
+  const date = $('#attendanceDate')?.value; 
   if (!date) return alert('Selecione uma data');
 
   // Criar entries para todos os membros
   const membersList = state.members.filter(m => m.status !== 'afastado');
   const entries = membersList.map(m => ({
       memberId: m.id,
-      presence: getPresence(date, m.id), // retorna 'P' se não tiver
-      observation: '' // ou pegar observation se quiser
+      presence: getPresence(date, m.id),
+      observation: ''
   }));
 
   try {
@@ -541,22 +550,34 @@ $('#btnSaveAttendance')?.addEventListener('click', async () => {
 });
 
 async function loadAttendance(date) {
-  if (!date) return; // evita popup
+  if (!date) {
+    console.warn('Data inválida ou não selecionada');
+    return;
+  }
+  
   try {
     const records = await api(`/api/attendance?date=${date}`);
-    state.attendanceByDate[date] = {};
-    records.forEach(r => { 
-      state.attendanceByDate[date][r.memberId] = r.presence; 
+    const map = {};
+
+    state.members.forEach(m => {
+      map[m.id] = 'P'; // default presente
     });
+
+    records.forEach(r => {
+      map[r.memberId] = r.presence || r.status;
+    });
+
+    state.attendanceByDate[date] = map;
   } catch (err) {
     console.error('Erro ao carregar presença:', err);
     state.attendanceByDate[date] = {};
   }
 }
 
-
 function renderAttendanceTable(date) {
   const tbody = $('#attendanceTable tbody');
+  if (!tbody) return;
+  
   tbody.innerHTML = '';
   const map = state.attendanceByDate[date] || {};
   const list = state.members.filter(m => m.status !== 'afastado');
@@ -616,22 +637,33 @@ function setPresence(date, memberId, value) {
 }
 
 // ======= Filtros =======
-function renderFilterDates() {
-  const sel = $('#filterDate');
-  sel.innerHTML = '';
-  
-  // Adiciona opção para todos os períodos
-  const allOption = document.createElement('option');
-  allOption.value = '';
-  allOption.textContent = 'Todos os períodos';
-  sel.appendChild(allOption);
-  
-  sundaysAround(new Date(), 60).forEach(iso => {
-    const o = document.createElement('option');
-    o.value = iso;
-    o.textContent = new Date(iso).toLocaleDateString();
-    sel.appendChild(o);
-  });
+async function renderFilterDates() {
+    const sel = $('#filterDate');
+    if (!sel) return;
+    
+    sel.innerHTML = '';
+
+    // Adiciona opção para todos os períodos
+    const allOption = document.createElement('option');
+    allOption.value = '';
+    allOption.textContent = 'Todos os períodos';
+    sel.appendChild(allOption);
+
+    try {
+        const dates = await api('/api/attendance/dates');
+        dates.forEach(d => {
+            const o = document.createElement('option');
+            o.value = d;
+            o.textContent = new Date(d).toLocaleDateString();
+            sel.appendChild(o);
+        });
+        
+        // Carrega todos os dados após renderizar as datas
+        await loadAllAttendanceData();
+        
+    } catch(err) {
+        console.error('Erro ao carregar datas para filtro:', err);
+    }
 }
 
 // Função para renderizar o select de membros para análise de faltas
@@ -659,8 +691,8 @@ function renderMemberSelect() {
 
 // Função para análise de faltas de um membro específico
 $('#btnAnalyzeMemberAbsences')?.addEventListener('click', () => {
-  const memberId = $('#absenceAnalysisMember').value;
-  const analysisType = $('#absenceAnalysisType').value;
+  const memberId = $('#absenceAnalysisMember')?.value;
+  const analysisType = $('#absenceAnalysisType')?.value;
   
   if (!memberId) {
     alert('Selecione um membro para análise');
@@ -669,6 +701,8 @@ $('#btnAnalyzeMemberAbsences')?.addEventListener('click', () => {
   
   const member = state.members.find(m => m.id === memberId);
   const tbody = $('#absenceAnalysisResult tbody');
+  if (!tbody || !member) return;
+  
   tbody.innerHTML = '';
   
   console.log('Analisando faltas para membro:', member.name);
@@ -680,11 +714,14 @@ $('#btnAnalyzeMemberAbsences')?.addEventListener('click', () => {
     
     console.log('Faltas encontradas:', absences);
     
-    $('#absenceAnalysisTitle').textContent = `Todas as faltas de ${member.name}`;
-    $('#absenceAnalysisCount').textContent = `Total: ${absences.length} falta(s) | Não justificadas: ${absences.filter(a => a.type === 'F').length} | Justificadas: ${absences.filter(a => a.type === 'FJ').length}`;
+    const titleEl = $('#absenceAnalysisTitle');
+    const countEl = $('#absenceAnalysisCount');
+    
+    if (titleEl) titleEl.textContent = `Todas as faltas de ${member.name}`;
+    if (countEl) countEl.textContent = `Total: ${absences.length} falta(s) | Não justificadas: ${absences.filter(a => a.type === 'F').length} | Justificadas: ${absences.filter(a => a.type === 'FJ').length}`;
     
     if (absences.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #666;">Nenhuma falta registrada ou dados de presença não carregados</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #666;">Nenhuma falta registrada</td></tr>';
     } else {
       absences.forEach(absence => {
         const tr = document.createElement('tr');
@@ -704,18 +741,21 @@ $('#btnAnalyzeMemberAbsences')?.addEventListener('click', () => {
     
     console.log('Dados mensais:', monthlyData);
     
-    $('#absenceAnalysisTitle').textContent = `Resumo mensal de faltas - ${member.name}`;
+    const titleEl = $('#absenceAnalysisTitle');
+    const countEl = $('#absenceAnalysisCount');
+    
+    if (titleEl) titleEl.textContent = `Resumo mensal de faltas - ${member.name}`;
     
     const totalAbsences = Object.values(monthlyData).reduce((sum, data) => sum + data.total, 0);
     const totalUnexcused = Object.values(monthlyData).reduce((sum, data) => sum + data.unexcused, 0);
     
-    $('#absenceAnalysisCount').textContent = `${Object.keys(monthlyData).length} mês(es) com faltas | Total geral: ${totalAbsences} falta(s) | Não justificadas: ${totalUnexcused}`;
+    if (countEl) countEl.textContent = `${Object.keys(monthlyData).length} mês(es) com faltas | Total geral: ${totalAbsences} falta(s) | Não justificadas: ${totalUnexcused}`;
     
     if (Object.keys(monthlyData).length === 0) {
-      tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #666;">Nenhuma falta registrada ou dados de presença não carregados</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #666;">Nenhuma falta registrada</td></tr>';
     } else {
       Object.entries(monthlyData)
-        .sort(([a], [b]) => b.localeCompare(a)) // Ordenar por mês (mais recente primeiro)
+        .sort(([a], [b]) => b.localeCompare(a))
         .forEach(([month, data]) => {
           const tr = document.createElement('tr');
           const monthName = new Date(month + '-01').toLocaleDateString('pt-BR', { 
@@ -739,21 +779,22 @@ $('#btnAnalyzeMemberAbsences')?.addEventListener('click', () => {
   }
   
   // Mostra a seção de análise
-  $('#absenceAnalysisSection').style.display = 'block';
+  const sectionEl = $('#absenceAnalysisSection');
+  if (sectionEl) sectionEl.style.display = 'block';
 });
 
-$('#btnRunFilters')?.addEventListener('click', () =>{
-  const date = $('#filterDate').value;
-  const pres = $('#filterPresence').value;
-  const name = $('#filterName').value.toLowerCase();
-  const role = $('#filterRole').value.toLowerCase();
-  const status = $('#filterStatus').value;
+$('#btnRunFilters')?.addEventListener('click', () => {
+  const date = $('#filterDate')?.value;
+  const pres = $('#filterPresence')?.value;
+  const name = $('#filterName')?.value.toLowerCase() || '';
+  const role = $('#filterRole')?.value.toLowerCase() || '';
+  const status = $('#filterStatus')?.value;
 
   const tbody = $('#filtersResult tbody');
+  if (!tbody) return;
+  
   tbody.innerHTML = '';
 
-  // Se uma data específica for selecionada, usar dados daquela data
-  // Se não, usar todos os membros sem filtro de presença
   let data = [];
   
   if (date) {
@@ -812,14 +853,19 @@ $('#btnRunFilters')?.addEventListener('click', () =>{
   });
 
   // Atualiza contadores
-  $('#countTotalMembers').textContent = totalMembros;
-  $('#countFaltas').textContent = countFaltas;
-  $('#countFaltasJustificadas').textContent = countFaltasJustificadas;
-  $('#countTotalFaltas').textContent = countFaltas + countFaltasJustificadas;
-  $('#countMembersByRole').textContent = Object.entries(cargosMap)
+  const updateCounter = (id, value) => {
+    const el = $(id);
+    if (el) el.textContent = value;
+  };
+  
+  updateCounter('#countTotalMembers', totalMembros);
+  updateCounter('#countFaltas', countFaltas);
+  updateCounter('#countFaltasJustificadas', countFaltasJustificadas);
+  updateCounter('#countTotalFaltas', countFaltas + countFaltasJustificadas);
+  updateCounter('#countMembersByRole', Object.entries(cargosMap)
     .map(([cargo, qtd]) => `${cargo}: ${qtd}`)
-    .join(' | ') || '—';
-  $('#countExcessiveAbsences').textContent = membrosComMuitasFaltas;
+    .join(' | ') || '—');
+  updateCounter('#countExcessiveAbsences', membrosComMuitasFaltas);
   
   // Mensagem explicativa quando filtrar por todos os períodos
   if (!date && data.length > 0) {
@@ -844,7 +890,7 @@ $('#btnRunFilters')?.addEventListener('click', () =>{
   // Atualiza o select de membros para análise após carregar dados
   renderMemberSelect();
   
-  // Mostra informação sobre dados carregados
+  // Log de debug
   console.log('Dados de presença disponíveis para análise:', Object.keys(state.attendanceByDate).length, 'datas');
   console.log('Membros com dados de presença:', state.members.map(m => ({
     name: m.name,
@@ -857,9 +903,9 @@ $('#btnRunFilters')?.addEventListener('click', () =>{
 $('#formCadastro')?.addEventListener('submit', async function(event) {
   event.preventDefault();
   
-  const nome = $('#nome').value.trim();
-  const email = $('#userEmail').value.trim();
-  const password = $('#userPassword').value.trim();
+  const nome = $('#nome')?.value.trim() || '';
+  const email = $('#userEmail')?.value.trim() || '';
+  const password = $('#userPassword')?.value.trim() || '';
 
   if (!nome || !email || !password) {
     alert('Todos os campos são obrigatórios!');
@@ -870,15 +916,18 @@ $('#formCadastro')?.addEventListener('submit', async function(event) {
     await api('/api/users', 'POST', { name: nome, email, password });
     alert('Usuário cadastrado com sucesso!');
     this.reset();
-    $('#userDialog').close();
+    const dlg = $('#userDialog');
+    if (dlg) dlg.close();
   } catch (err) {
     alert('Erro ao cadastrar usuário: ' + err.message);
   }
 });
 
 $('#btnCancelar')?.addEventListener('click', function() {
-  $('#formCadastro').reset();
-  $('#userDialog').close();
+  const form = $('#formCadastro');
+  const dlg = $('#userDialog');
+  if (form) form.reset();
+  if (dlg) dlg.close();
 });
 
 // ======= Inicialização =======

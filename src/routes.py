@@ -5,7 +5,8 @@ from src import app
 from src.services.servisos import (
     authenticate_user, 
     create_user, 
-    get_user_by_id, 
+    get_user_by_id,
+    list_attendance_dates, 
     list_members, 
     create_member, 
     update_member, 
@@ -242,6 +243,15 @@ def get_attendance_route(current_user):
         print(f"Erro ao carregar presença: {e}")
         return jsonify({'message': 'Erro ao carregar presença'}), 500
 
+@app.route('/api/attendance/dates', methods=['GET'])
+@token_required
+def get_attendance_dates(current_user):
+    try:
+        dates = list_attendance_dates()  # função que retorna todas as datas de presença cadastradas
+        return jsonify(dates)
+    except Exception as e:
+        print(f"Erro ao listar datas: {e}")
+        return jsonify({'message': 'Erro ao listar datas'}), 500
 
 
 @app.route('/api/attendance/<date>', methods=['PUT'])
